@@ -90,6 +90,7 @@ def load_model_and_tokenizer(model_id: str):
     tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token_id = tokenizer.eos_token_id
 
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
@@ -139,6 +140,14 @@ def call_llm(prompt: str, max_new_tokens: int, temperature: float) -> str:
     return TOKENIZER.decode(gen_ids, skip_special_tokens=True).strip()
 
 def extract_json_array(text: str) -> Optional[Any]:
+    text = text.strip()
+    # 去掉 ```json ... ``` 或 ``` ... ```
+    if text.startswith("```") and text.count("```") >= 2:
+        text = text.split("```", 2)[1].strip()
+        # 去掉 ```json 的 json header（若存在）
+        if text.lower().startswith("json"):
+            text = text[4:].lstrip()
+
     start = text.find("[")
     end = text.rfind("]")
     if start == -1 or end == -1 or end <= start: return None
@@ -146,6 +155,13 @@ def extract_json_array(text: str) -> Optional[Any]:
     except: return None
 
 def extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+    text = text.strip()
+    if text.startswith("```") and text.count("```") >= 2:
+        text = text.split("```", 2)[1].strip()
+        # 去掉 ```json 的 json header（若存在）
+        if text.lower().startswith("json"):
+            text = text[4:].lstrip()
+
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start: return None
@@ -155,7 +171,43 @@ def extract_json_object(text: str) -> Optional[Dict[str, Any]]:
 # =========================
 # 4. Agent Prompts
 # =========================
+
+def parse_counts(state: str) -> Dict[str, int]:
+    out = {}
+    try:
+        parts = [p.strip() for p in state.split(";")]
+        for p in parts:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                out[k.strip()] = int(v.strip())
+    except Exception:
+        pass
+    return out
+
 def build_generate_prompt(state: str, extra_notice: str) -> str:
+    counts = parse_counts(state)
+    total = counts.get("total", 0)
+
+    if total == 1:
+        plurality_hint = "There is likely a single shrimp in the scene. Use singular phrasing like 'a shrimp' or 'the shrimp'."
+        variety_hint = "Describe the shrimp's activity based only on the summary."
+        example = """Example Q&A (Do not copy verbatim):
+- Q: "<image>\\nWhat is the shrimp doing in this image?"
+A: "The shrimp appears to be swimming, though it may pause near the bottom as if foraging."
+- Q: "<image>\\nIs the shrimp feeding?"
+A: "It seems possible—the shrimp is close to the bottom and appears to be picking at particles."
+    """
+    else:
+        plurality_hint = "There may be multiple shrimps in the scene. Use plural phrasing when appropriate."
+        variety_hint = "Since there may be multiple shrimps, describe the variety of activities."
+        example = """Example Q&A (Do not copy verbatim):
+- Q: "<image>\\nWhat are the shrimps doing in this image?"
+A: "There appear to be multiple shrimps. Some seem to be swimming while others may be feeding near the bottom."
+- Q: "<image>\\nIs there any feeding behavior?"
+A: "Yes, at least one shrimp appears to be foraging on the substrate, distinct from others that are swimming."
+    """
+
+
     return f"""
 You are an assistant that must produce ONLY valid JSON.
 You are given a summary of shrimp counts by activity in the image. Use this summary to write natural {DIALOGUE_LANGUAGE} dialogues about the **overall scene and behaviors**.
@@ -165,13 +217,15 @@ Output format:
 - Each dialogue object: {{ "from": "human"|"gpt", "value": "text" }}
 
 Rules:
+0. Output MUST be a single JSON array and NOTHING ELSE (no code block fences, no explanation).
 1. Generate {GEN_DIALOGUE_MIN}-{GEN_DIALOGUE_MAX} INDEPENDENT dialogues.
 2. Each dialogue: 1-5 turns.
 3. Every dialogue MUST start with a human message whose value begins exactly with "<image>\\n".
 4. Speakers must alternate strictly: human, gpt, human, gpt...
 5. Content: 
-   - Since there are multiple shrimps, describe the **variety** of activities.
-   - Use phrases like "Some shrimps are...", "One appears to be...", "Most of them are...".
+   - {variety_hint}
+   - {plurality_hint}
+   - You may use phrases like "A shrimp...", "One appears to be...", or "Some shrimps..." depending on the total.
    - Base your descriptions only on the provided activity summary (counts).
 6. RESTRICTION: Do NOT mention specific IDs like "shrimp_1" or "shrimp_5". Just refer to them as "a shrimp", "another one", or "the group".
 7. RESTRICTION: Do NOT mention "tags", "labels", "metadata".
@@ -182,11 +236,7 @@ Background Knowledge:
 - **Swimming**: Uses pleopods (swimmerets), body extended, tail fan spread.
 - **Feeding**: Uses legs to pick particles from bottom, head tilted down, stationary or slow moving.
 
-Example Q&A (Do not copy verbatim):
-- Q: "<image>\\nWhat are the shrimps doing in this image?"
-  A: "There are multiple shrimps in the scene. Most appear to be swimming, while at least one seems to be feeding near the bottom."
-- Q: "<image>\\nIs there any feeding behavior?"
-  A: "Yes, I can see a shrimp that appears to be foraging on the substrate, distinct from the others that are swimming."
+{example}
 
 Additional constraints:
 {extra_notice}
@@ -268,17 +318,7 @@ No explanations.
 """.strip()
 
 
-def parse_counts(state: str) -> Dict[str, int]:
-    out = {}
-    try:
-        parts = [p.strip() for p in state.split(";")]
-        for p in parts:
-            if "=" in p:
-                k, v = p.split("=", 1)
-                out[k.strip()] = int(v.strip())
-    except Exception:
-        pass
-    return out
+
 
 
 # =========================
@@ -329,29 +369,38 @@ def generate_dialogues_with_agents(state: str) -> List[List[Dict[str, str]]]:
 
     # 1) unknown 直接回傳
     if state == "unknown":
-        ans = "The scene appears to contain multiple shrimps, but their specific activity is unclear from this frame."
+        ans = "The scene appears to contain one or more shrimps, but their specific activity is unclear from this frame."
+        q = "What are the shrimps doing in this image?"
         return [[
-            {"from": "human", "value": "<image>\nWhat are the shrimps doing in this image?"},
+            {"from": "human", "value": f"<image>\n{q}"},
             {"from": "gpt", "value": ans}
         ]]
 
     # 2) 解析 counts，決定回答內容
     counts = parse_counts(state)
+    total = counts.get("total", 0)
+    subject = "The shrimp" if total == 1 else "The shrimps"
+    verb = "appears" if total == 1 else "appear"
+    reflexive = "itself" if total == 1 else "themselves"
     sw = counts.get("swimming", 0)
     fd = counts.get("feeding", 0)
     sf = counts.get("swimming+feeding", 0)
+    poss = "its" if total == 1 else "their"
 
     if (fd + sf) > 0 and (sw + sf) > 0:
-        ans = "The scene appears to contain multiple shrimps showing mixed behaviors. Some likely are swimming, and a few may be feeding or foraging near the bottom."
+        if total == 1:
+            ans = f"{subject} {verb} to show mixed behaviors, likely swimming while also feeding or foraging near the bottom."
+        else:
+            ans = "The scene appears to contain multiple shrimps showing mixed behaviors. Some likely are swimming, and a few may be feeding or foraging near the bottom."
     elif (fd + sf) > 0:
-        ans = "The shrimps appear to be mostly feeding or foraging near the bottom, using their legs to pick at particles."
+        ans = f"{subject} {verb} to be mostly feeding or foraging near the bottom, using {poss} legs to pick at particles."
     elif (sw + sf) > 0:
-        ans = "The shrimps appear to be mostly swimming, likely propelling themselves with their swimmerets."
+        ans = f"{subject} {verb} to be mostly swimming, likely propelling {reflexive} with {poss} swimmerets."
     else:
-        ans = "The scene appears to contain multiple shrimps, but their specific activity is unclear from this frame."
-
+        ans = "The scene appears to contain one or more shrimps, but their specific activity is unclear from this frame."
+    q = "What is the shrimp doing in this image?" if total == 1 else "What are the shrimps doing in this image?"
     return [[
-        {"from": "human", "value": "<image>\nWhat are the shrimps doing in this image?"},
+        {"from": "human", "value": f"<image>\n{q}"},
         {"from": "gpt", "value": ans}
     ]]
 
