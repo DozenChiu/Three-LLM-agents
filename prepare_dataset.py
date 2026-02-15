@@ -31,22 +31,49 @@ GEN_DIALOGUE_MAX = 2                # 每次生成最多幾組獨立對話
 SAMPLE_INTERVAL = 150  # [修正] 這裡設定為每 150 張取 1 張
 
 # =========================
-# 2. 讀取 State (邏輯不變)
+# 2. 讀取 State (修正版：支援多物件)
 # =========================
-def get_shrimp_state(json_path: str) -> Optional[str]:
+def get_shrimp_state(json_path: str) -> str:
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+
+        total = 0
+        swim = 0
+        feed = 0
+        swim_feed = 0
+        unknown = 0
+
         for shape in data.get("shapes", []):
             attributes = shape.get("attributes", {})
-            if "state" in attributes:
-                states = attributes["state"]
-                if isinstance(states, list):
-                    return ", ".join([str(x) for x in states])
-                return str(states)
+            if "state" not in attributes:
+                continue
+
+            total += 1
+            states = attributes["state"]
+            if not isinstance(states, list):
+                states = [states]
+            states = [str(x).strip().lower() for x in states]
+
+            sset = set(states)
+            if "swimming" in sset and "feeding" in sset:
+                swim_feed += 1
+            elif "swimming" in sset:
+                swim += 1
+            elif "feeding" in sset:
+                feed += 1
+            else:
+                unknown += 1
+
+        if total == 0:
+            return "unknown"
+
+        return f"total={total}; swimming={swim}; feeding={feed}; swimming+feeding={swim_feed}; other={unknown}"
+
     except Exception as e:
         print(f"[WARN] Error reading {json_path}: {e}")
-    return None
+        return "unknown"
+
 
 # =========================
 # 3. LLM 初始化
@@ -126,13 +153,12 @@ def extract_json_object(text: str) -> Optional[Dict[str, Any]]:
     except: return None
 
 # =========================
-# 4. Agent Prompts [需求 4: 大幅修正]
+# 4. Agent Prompts
 # =========================
 def build_generate_prompt(state: str, extra_notice: str) -> str:
-    # [修正] 針對 swimming/feeding 專用的 prompt
     return f"""
 You are an assistant that must produce ONLY valid JSON.
-You are given image tags (internal). Use them to write natural {DIALOGUE_LANGUAGE} dialogues about a shrimp's **activity and behavior**, BUT NEVER mention tags/labels/metadata directly.
+You are given a summary of shrimp counts by activity in the image. Use this summary to write natural {DIALOGUE_LANGUAGE} dialogues about the **overall scene and behaviors**.
 
 Output format:
 - A single JSON array of dialogue arrays: [ [{{...}}, {{...}}], [{{...}}, {{...}}] ]
@@ -141,41 +167,28 @@ Output format:
 Rules:
 1. Generate {GEN_DIALOGUE_MIN}-{GEN_DIALOGUE_MAX} INDEPENDENT dialogues.
 2. Each dialogue: 1-5 turns.
-3.Every dialogue MUST start with a human message whose value begins exactly with "<image>\\n".
-4. Speakers must alternate strictly: human, gpt, human, gpt... (no consecutive same speaker).
-5. Content: Questions about **what the shrimp is doing (behavior)**, its posture, appendages movement, or position.
-6. RESTRICTION: Do NOT mention "tags", "labels", "metadata", "dataset".
-7. OBSERVATION: Phrase answers conservatively from a single frame: use "appears/seems/likely" and avoid time-continuous claims.
- E.g., "It appears to be moving its swimmerets." instead of "The tag says swimming".
-8. Internal Tag: shrimp_state: {state}
-9. Each message object must contain ONLY two keys: "from" and "value". No extra keys.
+3. Every dialogue MUST start with a human message whose value begins exactly with "<image>\\n".
+4. Speakers must alternate strictly: human, gpt, human, gpt...
+5. Content: 
+   - Since there are multiple shrimps, describe the **variety** of activities.
+   - Use phrases like "Some shrimps are...", "One appears to be...", "Most of them are...".
+   - Base your descriptions only on the provided activity summary (counts).
+6. RESTRICTION: Do NOT mention specific IDs like "shrimp_1" or "shrimp_5". Just refer to them as "a shrimp", "another one", or "the group".
+7. RESTRICTION: Do NOT mention "tags", "labels", "metadata".
+8. OBSERVATION: Phrase answers conservatively: "appears/seems/likely".
+9. Activity Summary (counts): {state}
 
-Background Knowledge (Use these to describe behavior naturally):
-- **Swimming**:
-  - Shrimp uses pleopods (swimmerets) under the abdomen to propel itself.
-  - Body is often extended or slightly curved.
-  - Tail fan (uropods) may be spread for steering.
-  - Antennae trail backwards or sweep the water.
-  - Movement may look forward-directed or mid-motion in the frame.
-- **Feeding**:
-  - Shrimp uses pereiopods (walking legs) and maxillipeds (feeding appendages) to manipulate food.
-  - Often stationary or moving slowly along the bottom (substrate).
-  - Head is tilted down towards the substrate.
-  - Appendages near the mouth are moving rapidly.
-  - May be picking at particles on the floor.
-- **Stationary/Resting**:
-  - Sitting still on the bottom.
-  - Minimal movement of appendages.
+Background Knowledge:
+- **Swimming**: Uses pleopods (swimmerets), body extended, tail fan spread.
+- **Feeding**: Uses legs to pick particles from bottom, head tilted down, stationary or slow moving.
 
 Example Q&A (Do not copy verbatim):
-- Q: "<image>\\nWhat is the shrimp doing in this video?"
-  A: "The shrimp is swimming actively through the water."
-- Q: "<image>\\nIs the shrimp eating?"
-  A: "Yes, it appears to be feeding near the bottom, using its legs to pick up particles."
-- Q: "<image>\\nDescribe the movement of the shrimp."
-  A: "It is propelling itself forward using its swimmerets."
+- Q: "<image>\\nWhat are the shrimps doing in this image?"
+  A: "There are multiple shrimps in the scene. Most appear to be swimming, while at least one seems to be feeding near the bottom."
+- Q: "<image>\\nIs there any feeding behavior?"
+  A: "Yes, I can see a shrimp that appears to be foraging on the substrate, distinct from the others that are swimming."
 
-Additional constraints from previous check:
+Additional constraints:
 {extra_notice}
 
 Return ONLY JSON.
@@ -198,14 +211,15 @@ The entire set is acceptable (PASS) only if ALL answers:
    (e.g., posture, body orientation, limb movement, relative position in frame).
 2. Do NOT mention or rely on non-visual metadata such as:
    "tags", "labels", "annotations", "dataset", "provided list", or similar.
-3. Do NOT claim medical diagnosis, lab confirmation, or external knowledge.
-4. If describing activity (e.g., swimming, feeding), 
+3. Do NOT mention specific shrimp IDs such as "shrimp_1", "shrimp_2", etc.
+4. Do NOT claim medical diagnosis, lab confirmation, or external knowledge.
+5. If describing activity (e.g., swimming, feeding), 
    use conservative phrasing such as:
    - "appears to be"
    - "seems to be"
    - "likely"
-5. Do NOT introduce details that cannot reasonably be inferred from a still image.
-6. Strictly follow dialogue structure:
+6. Do NOT introduce details that cannot reasonably be inferred from a still image.
+7. Strictly follow dialogue structure:
    - First message must be from "human"
    - It must begin exactly with "<image>\n"
    - Speakers must alternate human/gpt
@@ -253,6 +267,20 @@ No JSON.
 No explanations.
 """.strip()
 
+
+def parse_counts(state: str) -> Dict[str, int]:
+    out = {}
+    try:
+        parts = [p.strip() for p in state.split(";")]
+        for p in parts:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                out[k.strip()] = int(v.strip())
+    except Exception:
+        pass
+    return out
+
+
 # =========================
 # 5. Agent Loop
 # =========================
@@ -298,9 +326,33 @@ def generate_dialogues_with_agents(state: str) -> List[List[Dict[str, str]]]:
 
     # Fallback if all fail
     print("   -> [WARN] All attempts failed. Using fallback.")
+
+    # 1) unknown 直接回傳
+    if state == "unknown":
+        ans = "The scene appears to contain multiple shrimps, but their specific activity is unclear from this frame."
+        return [[
+            {"from": "human", "value": "<image>\nWhat are the shrimps doing in this image?"},
+            {"from": "gpt", "value": ans}
+        ]]
+
+    # 2) 解析 counts，決定回答內容
+    counts = parse_counts(state)
+    sw = counts.get("swimming", 0)
+    fd = counts.get("feeding", 0)
+    sf = counts.get("swimming+feeding", 0)
+
+    if (fd + sf) > 0 and (sw + sf) > 0:
+        ans = "The scene appears to contain multiple shrimps showing mixed behaviors. Some likely are swimming, and a few may be feeding or foraging near the bottom."
+    elif (fd + sf) > 0:
+        ans = "The shrimps appear to be mostly feeding or foraging near the bottom, using their legs to pick at particles."
+    elif (sw + sf) > 0:
+        ans = "The shrimps appear to be mostly swimming, likely propelling themselves with their swimmerets."
+    else:
+        ans = "The scene appears to contain multiple shrimps, but their specific activity is unclear from this frame."
+
     return [[
-        {"from": "human", "value": "<image>\nWhat is the shrimp doing?"},
-        {"from": "gpt", "value": f"The shrimp appears to be {state}."}
+        {"from": "human", "value": "<image>\nWhat are the shrimps doing in this image?"},
+        {"from": "gpt", "value": ans}
     ]]
 
 # =========================
