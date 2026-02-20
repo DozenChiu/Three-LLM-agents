@@ -24,6 +24,11 @@ def call_ollama(prompt: str) -> str:
 def get_shrimp_center(polygon):
     """計算精確面積重心，確保座標在蝦子身上"""
     n = len(polygon)
+
+    # --- 加上防呆機制 ---
+    if n == 0: 
+        return [0.0, 0.0]
+
     if n < 3: return [round(sum(p[0] for p in polygon)/n, 3), round(sum(p[1] for p in polygon)/n, 3)]
     area = 0.0
     cx = 0.0
@@ -244,7 +249,7 @@ def generate_dialogues(video_name, header, suggestion_text=""):
 You are an assistant that knows only the information provided in the annotations of multiple frames from a single video. If there is a Suggestion section, you MUST follow all instructions in it exactly. Do not ignore or skip any details. All dialogues must reflect the suggestions precisely. Refer to these tags, generate 10 independent 3-5 turn question-and-answer dialogues about the shrimp's position, quantity, and activity (state). Each human question should refer to information provided in the previous assistant's answer whenever possible. 
 Ensure the conversation flows naturally from one turn to the next. Follow exactly:
 
-1. **Language**: Use <DIALOGUE_LANGUAGE>.
+1. **Language**: Use English.
 
 2. **Format**: A single JSON array of dialogue objects. Each object must contain:
     - `"id"`: unique string or number for this dialogue
