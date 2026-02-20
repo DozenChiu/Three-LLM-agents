@@ -5,8 +5,8 @@ import re
 
 # ========= 基本設定 =========
 MODEL_NAME = "gemma3:12b"
-DATA_PATH = "/media/vllab/e30c49b4-d531-45be-913b-47f30fcd9fa2/M143040089/12_28"
-VIDEO_NAMES = [f"{i:04d}" for i in range(1, 37)]            # 對應 0001.mp4 ->0038.mp4
+DATA_PATH = "/home/yita/Desktop/tmp/12_28/影片"
+VIDEO_NAMES = [f"{i:04d}" for i in range(37, 42)]            # 對應 0001.mp4 ->0038.mp4
 FRAME_INTERVAL = 60                       # 每 幾 frame 取一個,這邊是2s取一frame,一次16frame資料
 OUTPUT_DIR = "./VQA.json"
 MAX_RETRIES = 3  
@@ -98,8 +98,12 @@ def generate_summary(json_folder, video_name):
                 label = s.get('label')
                 state = s.get('attributes', {}).get('state', [])
                 
+                # if label not in shrimp_summary:
+                #     shrimp_summary[label] = state
                 if label not in shrimp_summary:
-                    shrimp_summary[label] = state
+                    shrimp_summary[label] = set(state)
+                else:
+                    shrimp_summary[label].update(state)
 
                 abs_pos = get_shrimp_center(s.get('points', []))
                 rel_pos = [
@@ -133,6 +137,10 @@ def generate_summary(json_folder, video_name):
     }
 
     for shrimp_id, states in shrimp_summary.items():
+        # --- 補上這兩行：若狀態為空，視為 resting ---
+        if not states:
+            shrimp_summary[shrimp_id].add("resting")
+
         first_frame_pos = None
         # 取第一個出現的 frame 位置
         for f in cleaned_frames_data:
@@ -192,7 +200,9 @@ def generate_summary(json_folder, video_name):
                 shrimp_movement[shrimp_id] = f"stationary at [{round(pos[0],3)}, {round(pos[1],3)}]"
 
     # --- Step 2: 建立 movement 說明文字 ---
-    movement_lines = [f"{k}: {v}" for k, v in shrimp_movement.items()]
+    # movement_lines = [f"{k}: {v}" for k, v in shrimp_movement.items()]
+    # 改成這樣（隱藏 ID，直接說有一隻蝦子...）
+    movement_lines = [f"A shrimp is {v}" for k, v in shrimp_movement.items()]
     movement_text = "Shrimp Movement Info (for all shrimp, including stationary):\n" + "\n".join(movement_lines) + "\n\n"
 
 
@@ -218,7 +228,7 @@ def generate_summary(json_folder, video_name):
         shrimp_summary_output[shrimp_id] = {
             "start": start_pos,
             "end": end_pos,
-            "state": shrimp_summary[shrimp_id]
+            "state": list(shrimp_summary[shrimp_id])#modified # shrimp_summary[shrimp_id]
         }
 
     
@@ -293,6 +303,7 @@ Ensure the conversation flows naturally from one turn to the next. Follow exactl
     - Do not invent numbers or coordinates.
     - Avoid vague terms like "some" or "several".
     - Do not describe overlapping states individually as single states unless pure single-state shrimp exist.
+    - NEVER use internal tracking IDs, numbers, or names (e.g., "shrimp 1", "shrimp number 2", "shrimp_4"). Refer to a specific shrimp strictly by its coordinate (e.g., "The shrimp at [0.123, 0.456]").
 
 7. **Output**:
     - JSON array of 5 dialogue objects, each with "id", "video", "conversations" as described.
@@ -328,7 +339,7 @@ Check if the dialogues **fully comply with the summary**. A dialogue passes (**P
 
 1. All shrimp mentioned in the summary are correctly described with their coordinates and states.
 2. Movements match the summary information.
-3. No external tags, frame numbers, metadata, or invented information are mentioned.
+3. No external tags, tracking IDs (e.g., "shrimp 1", "shrimp_4"), frame numbers, metadata, or invented information are mentioned.
 4. Yes/No questions specify exact numbers and coordinates if relevant.
 
 If any violation occurs, mark **FAIL**.
