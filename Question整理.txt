@@ -1,0 +1,78 @@
+一、純問影片畫面（Visual Only）
+
+	Counting / Identification
+
+		How many shrimp are present in the video?
+
+		How many shrimp can be seen in the video?
+
+		How many shrimp are there in total?
+
+	Location / Coordinates
+
+		How many shrimp are visible, and where are they located?
+
+		What are the coordinates of the shrimp that is moving?
+
+		Which coordinate corresponds to the shrimp that moved, and what was its final position?
+
+	Detailed Coordinate Listing
+
+		How many shrimp are in the video? Please list the coordinates of each shrimp.
+
+		How many shrimp are in the video? Please list the coordinates of the shrimp that is swimming.
+
+		How many shrimp are in the video? Please list the coordinates of the shrimps that are swimming.
+
+	Behavior (visual observation)
+
+		Are all the shrimp performing the same activity?
+
+		Are any shrimp exhibiting feeding behavior?
+
+		What are the shrimp doing in this video?
+
+		What are the shrimp doing here?
+
+		What is happening in this video?
+
+	General Observation
+
+		What can you observe about the shrimp in this video?
+
+		What condition are the shrimp in?
+
+		Are the shrimp moving or staying still?
+
+		When do the shrimp get fed?
+
+二、純問聲音（Audio Only）
+
+	What sounds can you hear in this video?
+
+	Is there any sound made by the shrimp?
+
+	Is there a motor or engine sound in the background?
+
+	Does the motor sound continuous or intermittent?
+
+	Is there any clicking or snapping sound from the shrimp?
+
+	Are the shrimp silent throughout the video?
+
+三、聲音＋畫面（Audio + Visual）
+
+	Describe the behavior of the shrimp and identify any sounds in the video.
+
+===========================================================
+
+What is the position of the shrimp found closest to the bottom right corner of the frame?
+What are the coordinates of all shrimp in the frame, considering their most visible point?
+Locate the shrimp that is positioned closest to the very bottom edge of the video.
+Could you mark the shrimp found furthest from the bottom edge?
+Show me the coordinates of the shrimp currently feeding.
+Indicate the position of all shrimp located near the right side of the frame.
+What are the coordinates of the shrimp that is positioned closest to the bottom edge of the screen?
+Could you provide the spatial coordinates for all shrimp found below the midpoint of the frame?
+Find the position of all shrimp situated in the lower portion of the frame.
+What are the positions of the two shrimp visible at time 0.9?
