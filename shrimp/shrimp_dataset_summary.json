@@ -1,0 +1,62 @@
+{
+  "report_table": [
+    {
+      "資料類型": "影片描述",
+      "資料切分": "訓練集",
+      "來源檔案": "shrimp_video_cap_train_clean.json",
+      "問答筆數": 11734,
+      "影片數量": 1338,
+      "平均每段影片問答數": 8.77
+    },
+    {
+      "資料類型": "影片描述",
+      "資料切分": "驗證集",
+      "來源檔案": "shrimp_video_cap_val.json",
+      "問答筆數": 3176,
+      "影片數量": 359,
+      "平均每段影片問答數": 8.85
+    },
+    {
+      "資料類型": "定位與計數",
+      "資料切分": "訓練集",
+      "來源檔案": "shrimp_video_point_train_final_clean.json",
+      "問答筆數": 6897,
+      "影片數量": 807,
+      "平均每段影片問答數": 8.55
+    },
+    {
+      "資料類型": "定位與計數",
+      "資料切分": "驗證集",
+      "來源檔案": "shrimp_video_point_val_how_many_final.json",
+      "問答筆數": 1604,
+      "影片數量": 190,
+      "平均每段影片問答數": 8.44
+    }
+  ],
+  "total": {
+    "問答筆數": 23411,
+    "不重複影片數": 1697
+  },
+  "lora_training_check": {
+    "hf_cap": {
+      "file": "hf_cap.json",
+      "exists": true,
+      "count": 11734
+    },
+    "hf_point": {
+      "file": "hf_point.json",
+      "exists": true,
+      "count": 6897
+    },
+    "hf_shrimp_train": {
+      "file": "hf_shrimp_train.json",
+      "exists": true,
+      "count": 18631
+    },
+    "check": {
+      "hf_cap_plus_hf_point": 18631,
+      "hf_shrimp_train": 18631,
+      "is_equal": true
+    }
+  }
+}
