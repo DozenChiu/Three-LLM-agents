@@ -448,12 +448,13 @@ def compute_point_metrics(rows: Sequence[Dict[str, Any]], include_time: bool = F
     count_text_total = 0
 
     for row in ok_rows:
+        # ...解析點位...
         gt_points = parse_points(row.get("reference", ""))
         pred_points = parse_points(row.get("prediction", ""))
 
         gt_count = len(gt_points)
         pred_count = len(pred_points)
-        total_gt_points += gt_count
+        total_gt_points += gt_count     # 累加分母 G
 
         if pred_count == gt_count:
             exact_count_correct += 1
@@ -467,13 +468,18 @@ def compute_point_metrics(rows: Sequence[Dict[str, Any]], include_time: bool = F
                 count_text_match += 1
 
         if gt_points and pred_points:
+            # 建立距離成本矩陣
             cost = [
                 [point_distance(g, p, include_time=include_time) for p in pred_points]
                 for g in gt_points
             ]
+
+            # 進行一對一配對 (取得配對集合 A*)
             for r, c in greedy_assignment(cost):
-                d = cost[r][c]
-                matched_distances.append(d)
+                d = cost[r][c]  # 這就是配對後的 d_ij
+                matched_distances.append(d) # 收集以計算 Ecoord
+
+                # 統計 N_0.05 與 N_0.10
                 if d <= 0.05:
                     hits_5 += 1
                 if d <= 0.10:
@@ -483,8 +489,11 @@ def compute_point_metrics(rows: Sequence[Dict[str, Any]], include_time: bool = F
         "num_samples": len(ok_rows),
         "Point Count Accuracy": round(exact_count_correct / len(ok_rows), 4) if ok_rows else None,
         "Point Count MAE": round(sum(count_abs_errors) / len(count_abs_errors), 4) if count_abs_errors else None,
+        # 平均座標誤差 (E_coord) = 距離總和 / 配對點數 (M)
         "Average Coordinate Error": round(sum(matched_distances) / len(matched_distances), 4) if matched_distances else None,
+        # Hit Rate 5% (HR_0.05) = hits_5 (N_0.05) / total_gt_points (G)
         "Hit Rate (5%)": round(hits_5 / total_gt_points, 4) if total_gt_points else None,
+        # Hit Rate 10% (HR_0.10) = hits_10 (N_0.10) / total_gt_points (G)
         "Hit Rate (10%)": round(hits_10 / total_gt_points, 4) if total_gt_points else None,
         "total_gt_points": total_gt_points,
         "matched_pairs": len(matched_distances),
