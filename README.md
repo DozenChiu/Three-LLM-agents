@@ -39,7 +39,7 @@
 
 ### 📁 核心模型與資料集
 * **`molmo_data/`**：蝦隻資料集目錄。（因檔案過大，並未上傳至 GitHub）
-* **`models/molmo2-4b/`**：專案計畫使用的 Baseline model 存放位置。因檔案過大，並未上傳至 GitHub）
+* **`models/molmo2-4b/`**：專案計畫使用的 Baseline model 存放位置。(因檔案過大，並未上傳至 GitHub）
 * **`environment.yml`**：Conda 環境設定檔。
 
 ### 📁 核心程式碼 (Molmo2/)
