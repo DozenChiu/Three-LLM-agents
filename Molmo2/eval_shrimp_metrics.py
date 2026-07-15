@@ -336,7 +336,7 @@ def compute_caption_metrics(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
         from bert_score import score as bertscore_score
 
-        # ✅ 必要資源（避免 runtime error）
+        #  必要資源（避免 runtime error）
         nltk.download("wordnet", quiet=True)
         nltk.download("omw-1.4", quiet=True)
         nltk.download("punkt", quiet=True)
