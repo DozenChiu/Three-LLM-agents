@@ -26,9 +26,9 @@
 
 5. **分批補回核心與衝突套件**
    ```bash
-   pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 --extra-index-url [https://download.pytorch.org/whl/cu124](https://download.pytorch.org/whl/cu124)
+   pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 --extra-index-url https://download.pytorch.org/whl/cu124
    pip install datasets meteor pyarrow
-   pip install git+[https://github.com/allenai/molmo.git](https://github.com/allenai/molmo.git)
+   pip install git+https://github.com/allenai/molmo.git
    ```
 
 ---
