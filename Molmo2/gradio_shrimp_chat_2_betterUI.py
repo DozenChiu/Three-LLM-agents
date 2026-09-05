@@ -13,12 +13,13 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 from peft import PeftModel
 
 
-BASE_MODEL_PATH = "/media/sdb/dozen/models/molmo2-4b"
-LORA_PATH = "/media/sdb/dozen/molmo_runs/shrimp_lora_e1_0519"
+BASE_MODEL_PATH = "../models/molmo2-4b"
+# LORA_PATH = "./molmo_runs/shrimp_lora_e1_0519"
+LORA_PATH = "./molmo_runs/shrimp_lora_full"
 # LORA_PATH = "/media/sdb/dozen/molmo_runs/shrimp_lora_shrimp_lora_masked_e1"
 # LORA_PATH = "/media/sdb/dozen/molmo_runs/shrimp_lora_full"
 # LORA_PATH = "/media/sdb/dozen/molmo_runs/shrimp_lora_e3"
-LOG_PATH = "/media/sdb/dozen/Molmo2/log.jsonl"
+LOG_PATH = "log0905.jsonl"
 
 DEVICE = "cuda:0"
 DTYPE = torch.bfloat16
